@@ -107,7 +107,7 @@ def parse_frame(data):
 
 def main():
     parser = argparse.ArgumentParser(description='MLX90640 Binary Frame Consumer')
-    parser.add_argument('--refresh-rate', type=int, default=5, help='MLX90640 refresh rate (0-7, default: 5 = 16Hz)')
+    parser.add_argument('--refresh-rate', type=int, default=16, help='MLX90640 refresh rate (0-7, default: 5 = 16Hz)')
     parser.add_argument('--adc-resolution', type=int, default=19, help='ADC resolution in bits (16-19, default: 19)')
     parser.add_argument('--emissivity', type=float, default=0.98, help='Emissivity (0.0-1.0, default: 0.98)')
     parser.add_argument('--interleave', type=int, default=1, help='Interleave/chess mode (0/1, default: 1)')
