@@ -107,15 +107,26 @@ def parse_frame(data):
 
 def main():
     parser = argparse.ArgumentParser(description='MLX90640 Binary Frame Consumer')
-    parser.add_argument('--fps', type=int, default=16, help='Target FPS for mlx2bin (default: 16)')
-    parser.add_argument('--no-ascii', action='store_true', help='Disable ASCII rendering')
-    parser.add_argument('--stats-only', action='store_true', help='Show only FPS stats, no rendering')
+    parser.add_argument('--refresh-rate', type=int, default=5, help='MLX90640 refresh rate (0-7, default: 5 = 16Hz)')
+    parser.add_argument('--adc-resolution', type=int, default=19, help='ADC resolution in bits (16-19, default: 19)')
+    parser.add_argument('--emissivity', type=float, default=0.98, help='Emissivity (0.0-1.0, default: 0.98)')
+    parser.add_argument('--interleave', type=int, default=1, help='Interleave/chess mode (0/1, default: 1)')
+    parser.add_argument('--bad-pixel-correction', type=int, default=1, help='Bad pixel correction (0/1, default: 1)')
+    parser.add_argument('--stats-only', action='store_true', help='Show only FPS stats, no ASCII rendering')
     args = parser.parse_args()
+    
+    # Build mlx2bin command with parameters (no verbose/diagnostics to avoid breaking binary pipe)
+    cmd = ['./mlx2bin']
+    cmd.extend(['--refresh-rate', str(args.refresh_rate)])
+    cmd.extend(['--adc-resolution', str(args.adc_resolution)])
+    cmd.extend(['--emissivity', str(args.emissivity)])
+    cmd.extend(['--interleave', str(args.interleave)])
+    cmd.extend(['--bad-pixel-correction', str(args.bad_pixel_correction)])
     
     # Start mlx2bin subprocess
     try:
         process = subprocess.Popen(
-            ['./mlx2bin', str(args.fps)],
+            cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             bufsize=0  # Unbuffered for real-time data
@@ -124,7 +135,18 @@ def main():
         print("Error: mlx2bin executable not found. Make sure it's compiled and in the current directory.")
         sys.exit(1)
     
-    print(f"Started mlx2bin subprocess with {args.fps} FPS target")
+    # Calculate actual FPS from refresh rate
+    actual_fps = (args.refresh_rate == 0) and 1 or (1 << (args.refresh_rate - 1))
+    
+    # Display configuration
+    print("MLX90640 Configuration:")
+    print(f"  Refresh Rate: {args.refresh_rate} ({actual_fps}Hz)")
+    print(f"  ADC Resolution: {args.adc_resolution} bits")
+    print(f"  Emissivity: {args.emissivity}")
+    print(f"  Interleave: {'ON' if args.interleave else 'OFF'}")
+    print(f"  Bad Pixel Correction: {'ON' if args.bad_pixel_correction else 'OFF'}")
+    print(f"  Display Mode: {'Stats Only' if args.stats_only else 'ASCII + Stats'}")
+    print()
     print("Press Ctrl+C to stop")
     
     frame_times = deque(maxlen=100)  # Keep last 100 frame times
@@ -161,10 +183,10 @@ def main():
             elapsed = current_time - start_time
             
             if args.stats_only:
-                print(f"\rFrame: {frame_count:6d} | FPS: {fps:6.2f} | Elapsed: {elapsed:6.1f}s", end='', flush=True)
+                print(f"\rFrame: {frame_count:6d} | FPS: {fps:6.2f} | Elapsed: {elapsed:6.1f}s | Config: {args.refresh_rate}({actual_fps}Hz) | {args.adc_resolution}bit | ε={args.emissivity} | {'INT' if args.interleave else 'CHESS'} | {'BPC' if args.bad_pixel_correction else 'NO-BPC'}", end='', flush=True)
             else:
                 # Render ASCII frame
-                render_ascii_frame(temperatures, not args.no_ascii)
+                render_ascii_frame(temperatures, not args.stats_only)
                 
                 # Show stats
                 print(f"Frame: {frame_count:6d} | FPS: {fps:6.2f} | Elapsed: {elapsed:6.1f}s")
@@ -173,6 +195,9 @@ def main():
                 min_temp = min(temperatures)
                 max_temp = max(temperatures)
                 print(f"Temp range: {min_temp:5.1f}°C - {max_temp:5.1f}°C")
+                
+                # Show configuration
+                print(f"Config: {args.refresh_rate}({actual_fps}Hz) | {args.adc_resolution}bit | ε={args.emissivity} | {'INT' if args.interleave else 'CHESS'} | {'BPC' if args.bad_pixel_correction else 'NO-BPC'}")
     
     except KeyboardInterrupt:
         print("\nStopping...")
